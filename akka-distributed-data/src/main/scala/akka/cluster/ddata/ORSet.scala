@@ -29,7 +29,7 @@ object ORSet {
   /**
    * Extract the [[ORSet#elements]] of an `ORSet`.
    */
-  def unapply(a: ReplicatedData): Option[Set[Any]] = a match {
+  def unapply(a: AbstractReplicatedData[_]): Option[Set[Any]] = a match {
     case s: ORSet[Any] @unchecked ⇒ Some(s.elements)
     case _                        ⇒ None
   }
@@ -144,9 +144,7 @@ object ORSet {
 final class ORSet[A] private[akka] (
   private[akka] val elementsMap: Map[A, ORSet.Dot],
   private[akka] val vvector: VersionVector)
-  extends ReplicatedData with ReplicatedDataSerialization with RemovedNodePruning {
-
-  type T = ORSet[A]
+  extends AbstractReplicatedData[ORSet[A]] with ReplicatedDataSerialization { // FIXME with RemovedNodePruning {
 
   /**
    * Scala API

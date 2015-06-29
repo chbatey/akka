@@ -37,11 +37,11 @@ trait ReplicatedData {
  * Java API: Interface for implementing a [[ReplicatedData]] in
  * Java.
  */
-abstract class AbstractReplicatedData extends ReplicatedData {
-  // it is not possible to use a more strict type, because it is erased somehow, and
-  // the implementation is anyway required to implement
-  // merge(that: ReplicatedData): ReplicatedData
-  type T = AbstractReplicatedData
+abstract class AbstractReplicatedData[D <: AbstractReplicatedData[D]] {
+  /**
+   * Monotonic merge function.
+   */
+  def merge(that: D): D
 
 }
 

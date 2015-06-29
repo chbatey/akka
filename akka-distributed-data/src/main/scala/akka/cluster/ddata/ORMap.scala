@@ -9,18 +9,18 @@ import akka.util.HashCode
 import akka.japi.function.{ Function ⇒ JFunction }
 
 object ORMap {
-  private val _empty: ORMap[ReplicatedData] = new ORMap(ORSet.empty, Map.empty)
-  def empty[A <: ReplicatedData]: ORMap[A] = _empty.asInstanceOf[ORMap[A]]
-  def apply(): ORMap[ReplicatedData] = _empty
+  private val _empty: ORMap[AbstractReplicatedData[_]] = new ORMap(ORSet.empty, Map.empty)
+  def empty[A <: AbstractReplicatedData[_]]: ORMap[A] = _empty.asInstanceOf[ORMap[A]]
+  def apply(): ORMap[AbstractReplicatedData[_]] = _empty
   /**
    * Java API
    */
-  def create[A <: ReplicatedData](): ORMap[A] = empty[A]
+  def create[A <: AbstractReplicatedData[_]](): ORMap[A] = empty[A]
 
   /**
    * Extract the [[ORMap#entries]].
    */
-  def unapply[A <: ReplicatedData](m: ORMap[A]): Option[Map[String, A]] = Some(m.entries)
+  def unapply[A <: AbstractReplicatedData[_]](m: ORMap[A]): Option[Map[String, A]] = Some(m.entries)
 
 }
 
@@ -33,12 +33,10 @@ object ORMap {
  * This class is immutable, i.e. "modifying" methods return a new instance.
  */
 @SerialVersionUID(1L)
-final class ORMap[A <: ReplicatedData] private[akka] (
+final class ORMap[A <: AbstractReplicatedData[_]] private[akka] (
   private[akka] val keys: ORSet[String],
   private[akka] val values: Map[String, A])
-  extends ReplicatedData with ReplicatedDataSerialization with RemovedNodePruning {
-
-  type T = ORMap[A]
+  extends AbstractReplicatedData with ReplicatedDataSerialization { // FIXME with RemovedNodePruning {
 
   /**
    * Scala API: All entries of the map.
@@ -164,8 +162,9 @@ final class ORMap[A <: ReplicatedData] private[akka] (
               s"[${thisValue.getClass.getName}], got [${thatValue.getClass.getName}]"
             throw new IllegalArgumentException(errMsg)
           }
+          val mergedValue = thisValue.merge(thatValue)
           // TODO can we get rid of these (safe) casts?
-          val mergedValue = thisValue.merge(thatValue.asInstanceOf[thisValue.T]).asInstanceOf[A]
+          //          val mergedValue = thisValue.merge(thatValue.asInstanceOf[thisValue.T]).asInstanceOf[A]
           mergedValues = mergedValues.updated(key, mergedValue)
         case (Some(thisValue), None) ⇒
           mergedValues = mergedValues.updated(key, thisValue)
