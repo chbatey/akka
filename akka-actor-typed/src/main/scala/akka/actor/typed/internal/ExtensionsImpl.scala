@@ -25,7 +25,7 @@ trait ExtensionsImpl extends Extensions { self: ActorSystem[_] ⇒
   /**
    * Hook for ActorSystem to load extensions on startup
    */
-  final def loadExtensions(): Unit = {
+  private[akka] def loadExtensions(): Unit = {
     /**
      * @param throwOnLoadFail Throw exception when an extension fails to load (needed for backwards compatibility)
      */

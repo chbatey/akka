@@ -3,7 +3,8 @@
  */
 package akka.actor.typed
 
-import akka.{ actor ⇒ a }
+import akka.annotation.InternalApi
+import akka.{actor => a}
 
 import scala.annotation.unchecked.uncheckedVariance
 import language.implicitConversions
@@ -61,10 +62,11 @@ object ActorRef {
   // FIXME factory methods for below for Java (trait + object)
 
   /**
-   * Create an ActorRef from a Future, buffering up to the given number of
-   * messages in while the Future is not fulfilled.
+   * INTERNAL API
+   *
+   * FIXME, this isn't really used since we removed the native actor system
    */
-  private[akka] def apply[T](f: Future[ActorRef[T]], bufferSize: Int = 1000): ActorRef[T] =
+  @InternalApi private[akka] def apply[T](f: Future[ActorRef[T]], bufferSize: Int = 1000): ActorRef[T] =
     f.value match {
       // an AdaptedActorSystem will always create refs eagerly, so it will take this path
       case Some(Success(ref)) ⇒ ref
