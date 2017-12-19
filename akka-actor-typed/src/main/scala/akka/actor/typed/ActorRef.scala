@@ -4,7 +4,7 @@
 package akka.actor.typed
 
 import akka.annotation.InternalApi
-import akka.{actor => a}
+import akka.{ actor ⇒ a }
 
 import scala.annotation.unchecked.uncheckedVariance
 import language.implicitConversions
