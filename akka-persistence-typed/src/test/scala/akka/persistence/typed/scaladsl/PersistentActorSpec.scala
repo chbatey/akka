@@ -38,7 +38,7 @@ object PersistentActorSpec {
   val firstLogging = "first logging"
   val secondLogging = "second logging"
 
-  def counter(persistenceId: String)(implicit actorSystem: ActorSystem[TypedSpec.Command], testSettings: TestKitSettings): Behavior[Command] =
+  def counter(persistenceId: String)(implicit actorSystem: ActorSystem[_], testSettings: TestKitSettings): Behavior[Command] =
     counter(persistenceId, TestProbe[String].ref)
 
   def counter(persistenceId: String, loggingActor: ActorRef[String]): Behavior[Command] = {
@@ -105,7 +105,7 @@ object PersistentActorSpec {
 
 }
 
-class PersistentActorSpec extends TypedSpec(PersistentActorSpec.config) with Eventually with StartSupport {
+class PersistentActorSpec extends TestKit(PersistentActorSpec.config) with Eventually with TypedAkkaSpecWithShutdown {
   import PersistentActorSpec._
 
   implicit val testSettings = TestKitSettings(system)
@@ -113,7 +113,7 @@ class PersistentActorSpec extends TypedSpec(PersistentActorSpec.config) with Eve
   "A typed persistent actor" must {
 
     "persist an event" in {
-      val c = start(counter("c1"))
+      val c = spawn(counter("c1"))
 
       val probe = TestProbe[State]
       c ! Increment
@@ -122,7 +122,7 @@ class PersistentActorSpec extends TypedSpec(PersistentActorSpec.config) with Eve
     }
 
     "replay stored events" in {
-      val c = start(counter("c2"))
+      val c = spawn(counter("c2"))
 
       val probe = TestProbe[State]
       c ! Increment
@@ -131,7 +131,7 @@ class PersistentActorSpec extends TypedSpec(PersistentActorSpec.config) with Eve
       c ! GetValue(probe.ref)
       probe.expectMsg(State(3, Vector(0, 1, 2)))
 
-      val c2 = start(counter("c2"))
+      val c2 = spawn(counter("c2"))
       c2 ! GetValue(probe.ref)
       probe.expectMsg(State(3, Vector(0, 1, 2)))
       c2 ! Increment
@@ -140,7 +140,7 @@ class PersistentActorSpec extends TypedSpec(PersistentActorSpec.config) with Eve
     }
 
     "handle Terminated signal" in {
-      val c = start(counter("c3"))
+      val c = spawn(counter("c3"))
 
       val probe = TestProbe[State]
       c ! Increment
@@ -152,7 +152,7 @@ class PersistentActorSpec extends TypedSpec(PersistentActorSpec.config) with Eve
     }
 
     "handle receive timeout" in {
-      val c = start(counter("c4"))
+      val c = spawn(counter("c4"))
 
       val probe = TestProbe[State]
       c ! Increment
@@ -171,7 +171,7 @@ class PersistentActorSpec extends TypedSpec(PersistentActorSpec.config) with Eve
      */
     "chainable side effects with events" in {
       val loggingProbe = TestProbe[String]
-      val c = start(counter("c5", loggingProbe.ref))
+      val c = spawn(counter("c5", loggingProbe.ref))
 
       val probe = TestProbe[State]
 
@@ -186,7 +186,7 @@ class PersistentActorSpec extends TypedSpec(PersistentActorSpec.config) with Eve
     /** Proves that side-effects are called when emitting an empty list of events */
     "chainable side effects without events" in {
       val loggingProbe = TestProbe[String]
-      val c = start(counter("c6", loggingProbe.ref))
+      val c = spawn(counter("c6", loggingProbe.ref))
 
       val probe = TestProbe[State]
       c ! EmptyEventsListAndThenLog
@@ -198,7 +198,7 @@ class PersistentActorSpec extends TypedSpec(PersistentActorSpec.config) with Eve
     /** Proves that side-effects are called when explicitly calling Effect.none */
     "chainable side effects when doing nothing (Effect.none)" in {
       val loggingProbe = TestProbe[String]
-      val c = start(counter("c7", loggingProbe.ref))
+      val c = spawn(counter("c7", loggingProbe.ref))
 
       val probe = TestProbe[State]
       c ! DoNothingAndThenLog
@@ -214,7 +214,7 @@ class PersistentActorSpec extends TypedSpec(PersistentActorSpec.config) with Eve
       pending
       val behavior = Actor.supervise[Command](counter("c13"))
         .onFailure(SupervisorStrategy.restartWithBackoff(1.second, 10.seconds, 0.1))
-      val c = start(behavior)
+      val c = spawn(behavior)
     }
   }
 
