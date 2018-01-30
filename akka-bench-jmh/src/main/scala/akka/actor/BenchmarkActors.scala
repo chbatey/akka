@@ -116,7 +116,7 @@ object BenchmarkActors {
   }
 
   private def startEchoActorPairs(messagesPerPair: Int, numPairs: Int, dispatcher: String,
-                                  batchSize: Int)(implicit system: ActorSystem) = {
+                                  batchSize: Int)(implicit system: ActorSystem): (Vector[ActorRef], CountDownLatch) = {
 
     val fullPathToDispatcher = "akka.actor." + dispatcher
     val latch = new CountDownLatch(numPairs)

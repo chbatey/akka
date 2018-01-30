@@ -1,6 +1,6 @@
 # Akka Microbenchmarks
 
-This subproject contains some microbenchmarks excercising key parts of Akka.
+This subproject contains some microbenchmarks exercising key parts of Akka.
 
 You can run them like:
 

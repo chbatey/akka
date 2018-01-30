@@ -37,7 +37,7 @@ lazy val aggregatedProjects: Seq[ProjectReference] = Seq(
   slf4j,
   stream, streamTestkit, streamTests, streamTestsTck,
   testkit,
-  actorTyped, actorTypedTests, typedTestkit, persistenceTyped, clusterTyped, clusterShardingTyped
+  actorTyped, actorTypedTests, testkitTyped, persistenceTyped, clusterTyped, clusterShardingTyped
 )
 
 lazy val root = Project(
@@ -82,11 +82,13 @@ lazy val akkaScalaNightly = akkaModule("akka-scala-nightly")
 lazy val benchJmh = akkaModule("akka-bench-jmh")
   .dependsOn(
     Seq(
-      actor,
+      actor, actorTyped,
       stream, streamTests,
       persistence, distributedData,
       testkit
     ).map(_ % "compile->compile;compile->test;provided->provided"): _*
+  ).dependsOn(
+    testkitTyped % "test->test"
   )
   .settings(Dependencies.benchJmh)
   .enablePlugins(JmhPlugin, ScaladocNoVerificationOfDiagrams, NoPublish)
@@ -386,7 +388,7 @@ lazy val persistenceTyped = akkaModule("akka-persistence-typed")
     actorTyped,
     persistence,
     testkit % "test->test",
-    typedTestkit % "test->test",
+    testkitTyped % "test->test",
     actorTypedTests % "test->test"
   )
   .settings(AkkaBuild.mayChangeSettings)
@@ -402,7 +404,7 @@ lazy val clusterTyped = akkaModule("akka-cluster-typed")
     persistence % "provided->test",
     persistenceTyped % "provided->test",
     testkit % "test->test",
-    typedTestkit % "test->test",
+    testkitTyped % "test->test",
     actorTypedTests % "test->test"
   )
   .settings(AkkaBuild.mayChangeSettings)
@@ -415,7 +417,7 @@ lazy val clusterShardingTyped = akkaModule("akka-cluster-sharding-typed")
     persistenceTyped,
     clusterSharding,
     testkit % "test->test",
-    typedTestkit % "test->test",
+    testkitTyped % "test->test",
     actorTypedTests % "test->test",
     persistenceTyped % "test->test"
   )
@@ -426,7 +428,7 @@ lazy val clusterShardingTyped = akkaModule("akka-cluster-sharding-typed")
   .disablePlugins(MimaPlugin)
 
 
-lazy val typedTestkit = akkaModule("akka-testkit-typed")
+lazy val testkitTyped = akkaModule("akka-testkit-typed")
   .dependsOn(actorTyped, testkit % "compile->compile;test->test")
   .settings(AutomaticModuleName.settings("akka.testkit.typed"))
   .disablePlugins(MimaPlugin)
@@ -434,7 +436,7 @@ lazy val typedTestkit = akkaModule("akka-testkit-typed")
 lazy val actorTypedTests = akkaModule("akka-actor-typed-tests")
   .dependsOn(
     actorTyped,
-    typedTestkit % "compile->compile;test->provided;test->test"
+    testkitTyped % "compile->compile;test->provided;test->test"
   )
   .settings(AkkaBuild.mayChangeSettings)
   .disablePlugins(MimaPlugin)
