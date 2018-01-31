@@ -85,10 +85,8 @@ lazy val benchJmh = akkaModule("akka-bench-jmh")
       actor, actorTyped,
       stream, streamTests,
       persistence, distributedData,
-      testkit
-    ).map(_ % "compile->compile;compile->test;provided->provided"): _*
-  ).dependsOn(
-    testkitTyped % "test->test"
+      testkit, testkitTyped
+    ).map(_ % "compile->compile;compile->test;provided->provided;test->test"): _*
   )
   .settings(Dependencies.benchJmh)
   .enablePlugins(JmhPlugin, ScaladocNoVerificationOfDiagrams, NoPublish)

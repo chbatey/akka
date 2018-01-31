@@ -38,7 +38,7 @@ object TestKit {
 
   def shutdown(
     system:               ActorSystem[_],
-    duration:             Duration = 5.seconds,
+    duration:             Duration       = 5.seconds,
     verifySystemShutdown: Boolean        = false): Unit = {
     system.terminate()
     try Await.ready(system.whenTerminated, duration) catch {
