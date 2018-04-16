@@ -361,7 +361,7 @@ class Persistence(val system: ExtendedActorSystem) extends Extension {
 
   private def createAdapters(configPath: String, additionalConfig: Config): EventAdapters = {
     val pluginConfig = additionalConfig.withFallback(system.settings.config).getConfig(configPath)
-    EventAdapters(system, pluginConfig)
+    EventAdapters(system, pluginConfig, configPath)
   }
 
   /** Creates a canonical persistent actor id from a persistent actor ref. */

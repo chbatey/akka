@@ -44,16 +44,17 @@ class InmemEventAdaptersSpec extends AkkaSpec {
     """.stripMargin).withFallback(ConfigFactory.load())
 
   val extendedActorSystem = system.asInstanceOf[ExtendedActorSystem]
-  val inmemConfig = config.getConfig("akka.persistence.journal.inmem")
+  val inmemConifgPath = "akka.persistence.journal.inmem"
+  val inmemConfig = config.getConfig(inmemConifgPath)
 
   "EventAdapters" must {
     "parse configuration and resolve adapter definitions" in {
-      val adapters = EventAdapters(extendedActorSystem, inmemConfig)
+      val adapters = EventAdapters(extendedActorSystem, inmemConfig, inmemConifgPath)
       adapters.get(classOf[EventMarkerInterface]).getClass should ===(classOf[MarkerInterfaceAdapter])
     }
 
     "pick the most specific adapter available" in {
-      val adapters = EventAdapters(extendedActorSystem, inmemConfig)
+      val adapters = EventAdapters(extendedActorSystem, inmemConfig, inmemConifgPath)
 
       // sanity check; precise case, matching non-user classes
       adapters.get(classOf[java.lang.String]).getClass should ===(classOf[ExampleEventAdapter])
@@ -80,14 +81,14 @@ class InmemEventAdaptersSpec extends AkkaSpec {
 
       val combinedConfig = badConfig.getConfig("akka.persistence.journal.inmem")
       val ex = intercept[IllegalArgumentException] {
-        EventAdapters(extendedActorSystem, combinedConfig)
+        EventAdapters(extendedActorSystem, combinedConfig, inmemConifgPath)
       }
 
       ex.getMessage should include("java.lang.Integer was bound to undefined event-adapter: undefined-adapter")
     }
 
     "allow implementing only the read-side (ReadEventAdapter)" in {
-      val adapters = EventAdapters(extendedActorSystem, inmemConfig)
+      val adapters = EventAdapters(extendedActorSystem, inmemConfig, inmemConifgPath)
 
       // read-side only adapter
       val r: EventAdapter = adapters.get(classOf[ReadMeEvent])
@@ -95,7 +96,7 @@ class InmemEventAdaptersSpec extends AkkaSpec {
     }
 
     "allow implementing only the write-side (WriteEventAdapter)" in {
-      val adapters = EventAdapters(extendedActorSystem, inmemConfig)
+      val adapters = EventAdapters(extendedActorSystem, inmemConfig, inmemConifgPath)
 
       // write-side only adapter
       val w: EventAdapter = adapters.get(classOf[WriteMeEvent])
@@ -103,7 +104,7 @@ class InmemEventAdaptersSpec extends AkkaSpec {
     }
 
     "allow combining only the read-side (CombinedReadEventAdapter)" in {
-      val adapters = EventAdapters(extendedActorSystem, inmemConfig)
+      val adapters = EventAdapters(extendedActorSystem, inmemConfig, inmemConifgPath)
 
       // combined-read-side only adapter
       val r: EventAdapter = adapters.get(classOf[ReadMeTwiceEvent])

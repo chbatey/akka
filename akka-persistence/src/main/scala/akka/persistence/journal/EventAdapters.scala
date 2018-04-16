@@ -33,7 +33,7 @@ class EventAdapters(
   def get(clazz: Class[_]): EventAdapter = {
     map.get(clazz) match {
       case null ⇒ // bindings are ordered from most specific to least specific
-        val value = bindings filter {
+        val value: EventAdapter = bindings filter {
           _._1 isAssignableFrom clazz
         } match {
           case (_, bestMatch) +: _ ⇒ bestMatch
@@ -61,19 +61,20 @@ private[akka] object EventAdapters {
   type FQN = String
   type ClassHandler = (Class[_], EventAdapter)
 
-  def apply(system: ExtendedActorSystem, config: Config): EventAdapters = {
+  def apply(system: ExtendedActorSystem, config: Config, configPath: String): EventAdapters = {
     val adapters = configToMap(config, "event-adapters")
     val adapterBindings = configToListMap(config, "event-adapter-bindings")
     if (adapters.isEmpty && adapterBindings.isEmpty)
       IdentityEventAdapters
     else
-      apply(system, adapters, adapterBindings)
+      apply(system, adapters, adapterBindings, configPath)
   }
 
   private def apply(
     system:          ExtendedActorSystem,
     adapters:        Map[Name, FQN],
-    adapterBindings: Map[FQN, BoundAdapters]): EventAdapters = {
+    adapterBindings: Map[FQN, BoundAdapters],
+    configPath:      String): EventAdapters = {
 
     val adapterNames = adapters.keys.toSet
     for {
@@ -85,7 +86,7 @@ private[akka] object EventAdapters {
 
     // A Map of handler from alias to implementation (i.e. class implementing akka.serialization.Serializer)
     // For example this defines a handler named 'country': `"country" -> com.example.comain.CountryTagsAdapter`
-    val handlers = for ((k: String, v: String) ← adapters) yield k → instantiateAdapter(v, system).get
+    val handlers = for ((k: String, v: String) ← adapters) yield k → instantiateAdapter(v, system, configPath).get
 
     // bindings is a Seq of tuple representing the mapping from Class to handler.
     // It is primarily ordered by the most specific classes first, and secondly in the configured order.
@@ -102,14 +103,14 @@ private[akka] object EventAdapters {
     new EventAdapters(backing, bindings, system.log)
   }
 
-  def instantiateAdapter(adapterFQN: String, system: ExtendedActorSystem): Try[EventAdapter] = {
+  def instantiateAdapter(adapterFQN: String, system: ExtendedActorSystem, configPath: String): Try[EventAdapter] = {
     val clazz = system.dynamicAccess.getClassFor[Any](adapterFQN).get
     if (classOf[EventAdapter] isAssignableFrom clazz)
-      instantiate[EventAdapter](adapterFQN, system)
+      instantiate[EventAdapter](adapterFQN, system, configPath)
     else if (classOf[WriteEventAdapter] isAssignableFrom clazz)
-      instantiate[WriteEventAdapter](adapterFQN, system).map(NoopReadEventAdapter)
+      instantiate[WriteEventAdapter](adapterFQN, system, configPath).map(NoopReadEventAdapter)
     else if (classOf[ReadEventAdapter] isAssignableFrom clazz)
-      instantiate[ReadEventAdapter](adapterFQN, system).map(NoopWriteEventAdapter)
+      instantiate[ReadEventAdapter](adapterFQN, system, configPath).map(NoopWriteEventAdapter)
     else
       throw new IllegalArgumentException(s"Configured $adapterFQN does not implement any EventAdapter interface!")
   }
@@ -131,9 +132,13 @@ private[akka] object EventAdapters {
    * Tries to load the specified Serializer by the fully-qualified name; the actual
    * loading is performed by the system’s [[akka.actor.DynamicAccess]].
    */
-  private def instantiate[T: ClassTag](fqn: FQN, system: ExtendedActorSystem): Try[T] =
+  private def instantiate[T: ClassTag](fqn: FQN, system: ExtendedActorSystem, configPath: String): Try[T] =
     system.dynamicAccess.createInstanceFor[T](fqn, List(classOf[ExtendedActorSystem] → system)) recoverWith {
-      case _: NoSuchMethodException ⇒ system.dynamicAccess.createInstanceFor[T](fqn, Nil)
+      case _: NoSuchMethodException ⇒ system.dynamicAccess.createInstanceFor[T](fqn, Nil) recoverWith {
+        case _: NoSuchMethodException ⇒ system.dynamicAccess.createInstanceFor[T](fqn, List(
+          classOf[ExtendedActorSystem] → system,
+          classOf[String] -> configPath))
+      }
     }
 
   /**

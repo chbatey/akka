@@ -5,21 +5,27 @@
 
 package akka.persistence.journal
 
-import scala.concurrent.duration._
+import akka.Done
 import akka.actor._
-import akka.pattern.pipe
+import akka.pattern.{ CircuitBreaker, ask, pipe }
+import akka.persistence.JournalProtocol.ReplayedMessage
 import akka.persistence._
+import akka.persistence.journal.Replayer.{ ReplayerAt, ReplayerMessages }
 import akka.util.Helpers.toRootLowerCase
+import akka.util.Timeout
+
+import scala.annotation.tailrec
 import scala.collection.immutable
 import scala.concurrent.Future
-import scala.util.{ Failure, Success, Try }
+import scala.concurrent.duration._
 import scala.util.control.NonFatal
-import akka.pattern.CircuitBreaker
+import scala.util.{ Failure, Success, Try }
 
 /**
  * Abstract journal, optimized for asynchronous, non-blocking writes.
  */
-trait AsyncWriteJournal extends Actor with WriteJournalBase with AsyncRecovery {
+trait AsyncWriteJournal extends Actor with AsyncRecovery {
+
   import AsyncWriteJournal._
   import JournalProtocol._
   import context.dispatcher
@@ -51,7 +57,52 @@ trait AsyncWriteJournal extends Actor with WriteJournalBase with AsyncRecovery {
   private val resequencer = context.actorOf(Props[Resequencer]())
   private var resequencerCounter = 1L
 
-  final def receive = receiveWriteJournal.orElse[Any, Unit](receivePluginInternal)
+  private val persistence = Persistence(context.system)
+  private val eventAdapters = persistence.adaptersFor(self)
+
+  final def receive: Receive = receiveWriteJournal.orElse[Any, Unit](receivePluginInternal)
+
+  // TODO, opt into async adapters in config? This will add overhead for some users not
+  // to use
+  private def preparePersistentBatch(rb: immutable.Seq[PersistentEnvelope]): Future[immutable.Seq[AtomicWrite]] = {
+    val atomics = rb.flatMap {
+      case a: AtomicWrite ⇒ Seq(a)
+      case _              ⇒ Seq.empty[AtomicWrite]
+    }
+    Future.traverse(atomics) { a ⇒
+      Future.traverse(a.payload)(p ⇒ adaptToJournal(p.update(sender = Actor.noSender)))
+        .map(prs ⇒ a.copy(payload = prs))
+    }
+  }
+
+  private def adaptFromJournal(repr: PersistentRepr): Future[immutable.Seq[PersistentRepr]] = {
+    Future.sequence(eventAdapters.get(repr.payload.getClass).fromJournal(repr.payload, repr.manifest).events map {
+      case f: Future[_]   ⇒ f
+      case adaptedPayload ⇒ Future.successful(adaptedPayload)
+    }).map(adaptedPayloads ⇒ adaptedPayloads.map(repr.withPayload))
+  }
+
+  private final def adaptToJournal(repr: PersistentRepr): Future[PersistentRepr] = {
+    val payload = repr.payload
+    val adapter = eventAdapters.get(payload.getClass)
+
+    // IdentityEventAdapter returns "" as manifest and normally the incoming PersistentRepr
+    // doesn't have an assigned manifest, but when WriteMessages is sent directly to the
+    // journal for testing purposes we want to preserve the original manifest instead of
+    // letting IdentityEventAdapter clearing it out.
+    if (adapter == IdentityEventAdapter || adapter.isInstanceOf[NoopWriteEventAdapter])
+      Future.successful(repr)
+    else {
+      val manifest = adapter.manifest(payload)
+      val adaptedPayload = adapter.toJournal(payload)
+      adaptedPayload match {
+        case future: Future[_] ⇒
+          future.map(np ⇒ repr.withPayload(np).withManifest(manifest))
+        case _ ⇒
+          Future.successful(repr.withPayload(adaptedPayload).withManifest(manifest))
+      }
+    }
+  }
 
   final val receiveWriteJournal: Actor.Receive = {
     // cannot be a val in the trait due to binary compatibility
@@ -63,23 +114,20 @@ trait AsyncWriteJournal extends Actor with WriteJournalBase with AsyncRecovery {
         resequencerCounter += messages.foldLeft(1)((acc, m) ⇒ acc + m.size)
 
         val atomicWriteCount = messages.count(_.isInstanceOf[AtomicWrite])
-        val prepared = Try(preparePersistentBatch(messages))
-        val writeResult = (prepared match {
-          case Success(prep) ⇒
-            // try in case the asyncWriteMessages throws
-            try breaker.withCircuitBreaker(asyncWriteMessages(prep))
-            catch { case NonFatal(e) ⇒ Future.failed(e) }
-          case f @ Failure(_) ⇒
-            // exception from preparePersistentBatch => rejected
-            Future.successful(messages.collect { case a: AtomicWrite ⇒ f })
-        }).map { results ⇒
+        val prepared: Future[immutable.Seq[AtomicWrite]] = preparePersistentBatch(messages)
+        val writeResults = prepared.flatMap { aws ⇒
+          try breaker.withCircuitBreaker(asyncWriteMessages(aws))
+          catch { case NonFatal(e) ⇒ Future.failed(e) }
+        }.recover {
+          case t ⇒ messages.collect { case a: AtomicWrite ⇒ Failure(t) }
+        }.map { results ⇒
           if (results.nonEmpty && results.size != atomicWriteCount)
             throw new IllegalStateException("asyncWriteMessages returned invalid number of results. " +
-              s"Expected [${prepared.get.size}], but got [${results.size}]")
+              s"Expected [${atomicWriteCount}], but got [${results.size}]")
           results
         }
 
-        writeResult.onComplete {
+        writeResults.onComplete {
           case Success(results) ⇒
             resequencer ! Desequenced(WriteMessagesSuccessful, cctr, persistentActor, self)
 
@@ -128,43 +176,66 @@ trait AsyncWriteJournal extends Actor with WriteJournalBase with AsyncRecovery {
             replayFilterWindowSize, replayFilterMaxOldWriters, replayDebugEnabled))
           else persistentActor
 
+        val replayer = context.actorOf(Props(new Replayer(replyTo, fromSequenceNr)))
+
         val readHighestSequenceNrFrom = math.max(0L, fromSequenceNr - 1)
         /*
          * The API docs for the [[AsyncRecovery]] say not to rely on asyncReadHighestSequenceNr
          * being called before a call to asyncReplayMessages even tho it currently always is. The Cassandra
          * plugin does rely on this so if you change this change the Cassandra plugin.
          */
-        breaker.withCircuitBreaker(asyncReadHighestSequenceNr(persistenceId, readHighestSequenceNrFrom))
-          .flatMap { highSeqNr ⇒
-            val toSeqNr = math.min(toSequenceNr, highSeqNr)
-            if (highSeqNr == 0L || fromSequenceNr > toSeqNr)
-              Future.successful(highSeqNr)
-            else {
-              // Send replayed messages and replay result to persistentActor directly. No need
-              // to resequence replayed messages relative to written and looped messages.
-              // not possible to use circuit breaker here
-              asyncReplayMessages(persistenceId, fromSequenceNr, toSeqNr, max) { p ⇒
-                if (!p.deleted) // old records from 2.3 may still have the deleted flag
-                  adaptFromJournal(p).foreach { adaptedPersistentRepr ⇒
-                    replyTo.tell(ReplayedMessage(adaptedPersistentRepr), Actor.noSender)
-                  }
-              }.map(_ ⇒ highSeqNr)
+        val highestSequenceNr = breaker.withCircuitBreaker(asyncReadHighestSequenceNr(persistenceId, readHighestSequenceNrFrom))
+
+        val journalReplay = highestSequenceNr.flatMap { highSeqNr ⇒
+          val toSeqNr = math.min(toSequenceNr, highSeqNr)
+          if (highSeqNr == 0L || fromSequenceNr > toSeqNr)
+            Future.successful(highSeqNr)
+          else {
+            // Send replayed messages and replay result to persistentActor directly. No need
+            // to resequence replayed messages relative to written and looped messages.
+            // not possible to use circuit breaker here
+
+            var future = Future.successful()
+
+            asyncReplayMessages(persistenceId, fromSequenceNr, toSeqNr, max) { p: PersistentRepr ⇒
+              if (!p.deleted) { // old records from 2.3 may still have the deleted flag
+
+                val adapted = adaptFromJournal(p)
+
+
+//                adaptFromJournal(p).foreach { adaptedPrs: immutable.Seq[PersistentRepr] ⇒
+//                   This is on a future call back so we no longer are ordered with respect
+//                   to messages we send from the journal actor. So we need to deal with replays
+//                   over taking each other.
+//                  replayer ! ReplayerMessages(p.sequenceNr, adaptedPrs)
+                }
             }
-          }.map {
-            highSeqNr ⇒ RecoverySuccess(highSeqNr)
-          }.recover {
-            case e ⇒ ReplayMessagesFailure(e)
-          }.pipeTo(replyTo).foreach {
-            _ ⇒ if (publish) context.system.eventStream.publish(r)
+              // FIXME, should be configurable as a slow async adapter will
+              // cause this to increase
+
+              // Hold off completing this future until the replayer has forwarded all
+              // of the ReplayMessages. Meaning that the RecoverySuccess comes after
+//              .flatMap(_ ⇒ replayer.ask(ReplayerAt(toSeqNr))(Timeout(5.seconds)))
+              .map(_ ⇒ highSeqNr)
           }
+        }
+
+        journalReplay.map {
+          highSeqNr ⇒ RecoverySuccess(highSeqNr)
+        }.recover {
+          case e ⇒ ReplayMessagesFailure(e)
+        }.pipeTo(replyTo).foreach { _ ⇒
+          if (publish) context.system.eventStream.publish(r)
+          context.stop(replayer)
+        }
 
       case d @ DeleteMessagesTo(persistenceId, toSequenceNr, persistentActor) ⇒
-        breaker.withCircuitBreaker(asyncDeleteMessagesTo(persistenceId, toSequenceNr)) map {
-          case _ ⇒ DeleteMessagesSuccess(toSequenceNr)
+        breaker.withCircuitBreaker(asyncDeleteMessagesTo(persistenceId, toSequenceNr)) map { _ ⇒
+          DeleteMessagesSuccess(toSequenceNr)
         } recover {
           case e ⇒ DeleteMessagesFailure(e, toSequenceNr)
-        } pipeTo persistentActor onComplete {
-          case _ ⇒ if (publish) context.system.eventStream.publish(d)
+        } pipeTo persistentActor onComplete { _ ⇒
+          if (publish) context.system.eventStream.publish(d)
         }
     }
   }
