@@ -5,15 +5,18 @@
 package akka.actor.typed
 package internal
 
-import akka.util.{ LineNumbers }
+import akka.util.LineNumbers
 import akka.annotation.InternalApi
 import akka.actor.typed.{ ActorContext ⇒ AC }
 import akka.actor.typed.scaladsl.{ ActorContext ⇒ SAC }
+
+import scala.reflect.ClassTag
 
 /**
  * INTERNAL API
  */
 @InternalApi private[akka] object BehaviorImpl {
+
   import Behavior._
 
   implicit class ContextAs[T](val ctx: AC[T]) extends AnyVal {
@@ -80,4 +83,17 @@ import akka.actor.typed.scaladsl.{ ActorContext ⇒ SAC }
     }
   }
 
+  // FIXME, remove
+  class ContraMapInterceptor[From: ClassTag, To](f: From ⇒ To) extends BehaviorInterceptor[From, To] {
+    override def aroundReceive(ctx: AC[From], msg: From, target: BehaviorInterceptor.ReceiveTarget[To]): Behavior[To] = {
+      msg match {
+        case ff: From ⇒ target(ctx, f(ff))
+        case other    ⇒ target(ctx, other.asInstanceOf[To])
+      }
+    }
+
+    override def aroundSignal(ctx: AC[From], signal: Signal, target: BehaviorInterceptor.SignalTarget[To]): Behavior[To] = {
+      target(ctx, signal)
+    }
+  }
 }

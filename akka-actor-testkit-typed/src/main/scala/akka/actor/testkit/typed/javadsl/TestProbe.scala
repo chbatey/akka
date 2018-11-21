@@ -173,6 +173,10 @@ abstract class TestProbe[M] {
   def expectTerminated[U](actorRef: ActorRef[U], max: Duration): Unit
 
   /**
+   */
+  def expectTerminated[U](actorRef: ActorRef[U]): Unit
+
+  /**
    * Evaluate the given assert every `interval` until it does not throw an exception and return the
    * result.
    *

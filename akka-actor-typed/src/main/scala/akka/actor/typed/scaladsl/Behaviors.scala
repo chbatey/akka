@@ -5,6 +5,7 @@
 package akka.actor.typed
 package scaladsl
 
+import akka.actor.typed.internal.BehaviorImpl.ContraMapInterceptor
 import akka.annotation.{ ApiMayChange, DoNotInherit, InternalApi }
 import akka.actor.typed.internal._
 
@@ -147,6 +148,14 @@ object Behaviors {
    */
   def intercept[O, I](behaviorInterceptor: BehaviorInterceptor[O, I])(behavior: Behavior[I]): Behavior[O] =
     BehaviorImpl.intercept(behaviorInterceptor)(behavior)
+
+  /**
+   * Given a behavior that accepts messages of type I and a function that from O to I
+   * return a behavior that accepts messages of type O
+   */
+  def contramap[O: ClassTag, I](behavior: Behavior[I], f: O ⇒ I): Behavior[O] = {
+    BehaviorImpl.intercept(new ContraMapInterceptor[O, I](f))(behavior)
+  }
 
   /**
    * Behavior decorator that copies all received message to the designated

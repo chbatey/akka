@@ -13,7 +13,7 @@ import com.typesafe.config.{ Config, ConfigFactory }
 
 import scala.concurrent.Await
 import scala.concurrent.duration._
-import akka.actor.Scheduler
+import akka.actor.{ DeadLetter, Scheduler }
 import akka.util.Timeout
 
 object ActorTestKit {
@@ -184,6 +184,18 @@ final class ActorTestKit private[akka] (val name: String, val config: Config, se
    * @tparam M the type of messages the probe should accept
    */
   def createTestProbe[M](name: String): TestProbe[M] = TestProbe(name)(system)
+
+  /**
+   * Subscribes to dead letters and unwraps them before sending them to the
+   * returned probe.
+   * Must be called before the dead letter is sent.
+   */
+  def deadLetterProbe(): TestProbe[Any] = {
+    import akka.actor.typed.scaladsl.adapter._
+    val probe = createTestProbe[Any]()
+    system.toUntyped.eventStream.subscribe(probe.ref.toUntyped, classOf[DeadLetter])
+    probe
+  }
 
   // FIXME needed for Akka internal tests but, users shouldn't spawn system actors?
   @InternalApi

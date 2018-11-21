@@ -29,6 +29,7 @@ private[akka] object TestProbeImpl {
   private val testActorId = new AtomicInteger(0)
 
   private case class WatchActor[U](actor: ActorRef[U])
+
   private def testActor[M](queue: BlockingDeque[M], terminations: BlockingDeque[Terminated]): Behavior[M] = Behaviors.receive[M] { (context, message) ⇒
     message match {
       case WatchActor(ref) ⇒ context.watch(ref)
@@ -231,6 +232,8 @@ private[akka] final class TestProbeImpl[M](name: String, system: ActorSystem[_])
 
     loop(max.dilated, Nil)
   }
+
+  override def expectTerminated[U](actorRef: ActorRef[U]): Unit = expectTerminated(actorRef, remainingOrDefault)
 
   override def expectTerminated[U](actorRef: ActorRef[U], max: FiniteDuration): Unit = {
     testActor.asInstanceOf[ActorRef[AnyRef]] ! WatchActor(actorRef)

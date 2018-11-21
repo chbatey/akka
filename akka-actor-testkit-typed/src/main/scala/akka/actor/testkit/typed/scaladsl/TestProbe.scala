@@ -202,6 +202,12 @@ object TestProbe {
   def expectTerminated[U](actorRef: ActorRef[U], max: FiniteDuration): Unit
 
   /**
+   * Expect the given actor to be stopped or stop within the given timeout or
+   * throw an [[AssertionError]].
+   */
+  def expectTerminated[U](actorRef: ActorRef[U]): Unit = expectTerminated(actorRef, remainingOrDefault)
+
+  /**
    * Evaluate the given assert every `interval` until it does not throw an exception and return the
    * result.
    *
