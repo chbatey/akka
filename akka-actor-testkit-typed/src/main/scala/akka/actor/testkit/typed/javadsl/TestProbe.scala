@@ -173,6 +173,8 @@ abstract class TestProbe[M] {
   def expectTerminated[U](actorRef: ActorRef[U], max: Duration): Unit
 
   /**
+   * Expect the given actor to be stopped or stop within remaainingOrDefault or
+   * throw an [[AssertionError]]
    */
   def expectTerminated[U](actorRef: ActorRef[U]): Unit
 

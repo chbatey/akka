@@ -4,7 +4,6 @@
 
 package akka.actor.testkit.typed.internal
 
-import java.time
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.{ BlockingDeque, LinkedBlockingDeque }
 import java.util.function.Supplier
