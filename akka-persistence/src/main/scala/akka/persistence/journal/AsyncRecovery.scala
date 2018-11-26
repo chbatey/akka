@@ -4,15 +4,29 @@
 
 package akka.persistence.journal
 
-import scala.concurrent.Future
+import akka.Done
+import akka.actor.ActorRef
 
+import scala.concurrent.Future
 import akka.persistence.PersistentRepr
+
+object AsyncRecovery {
+
+}
 
 /**
  * Asynchronous message replay and sequence number recovery interface.
  */
 trait AsyncRecovery {
   //#journal-plugin-api
+
+  /**
+    * Plugin API: Be notified of a persistent actor starting before any calls to
+    * asyncReplayMessages or asyncReadHighestSequenceNr. Default implementation does
+    * not do anything.
+    */
+  def asyncPersistentActorStarting(persistenceId: String, ref: ActorRef): Future[Done] = Future.successful(Done)
+
   /**
    * Plugin API: asynchronously replays persistent messages. Implementations replay
    * a message by calling `replayCallback`. The returned future must be completed
