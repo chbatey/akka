@@ -63,6 +63,10 @@ object MultiNodeClusterSpec {
         enabled=on
         destination=target/flight-recorder-${UUID.randomUUID().toString}.afr
       }
+      artery {
+         enabled = on
+         transport = tcp
+      }
     }
     akka.loggers = ["akka.testkit.TestEventListener"]
     akka.test {
