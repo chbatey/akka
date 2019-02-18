@@ -37,7 +37,7 @@ object StreamRefSpec extends MultiNodeConfig {
   val second = role("second")
   val third = role("third")
 
-  commonConfig(debugConfig(on = false).
+  commonConfig(debugConfig(on = true).
     withFallback(ConfigFactory.parseString("""
         akka.cluster {
           auto-down-unreachable-after = 1s
@@ -121,7 +121,6 @@ object StreamRefSpec extends MultiNodeConfig {
         // wrap the SinkRef in some domain message, such that the sender knows what source it is
         val reply: Future[MeasurementsSinkReady] = ref.map(MeasurementsSinkReady(nodeId, _))
 
-        // reply to sender
         reply pipeTo sender()
     }
 
@@ -204,6 +203,7 @@ abstract class StreamRefSpec extends MultiNodeSpec(StreamRefSpec)
       import system.dispatcher
       val streamLifecycle1 = TestProbe()
       val streamLifecycle3 = TestProbe()
+      // Stream ref going from
       runOn(third) {
         system.actorOf(DataReceiver.props(streamLifecycle3.ref), "dataReceiver")
       }
@@ -245,9 +245,11 @@ abstract class StreamRefSpec extends MultiNodeSpec(StreamRefSpec)
       enterBarrier("members-removed")
 
       runOn(first) {
+        log.info("Awaiting completed")
         streamLifecycle1.expectMsg("completed-system-42-tmp")
       }
       runOn(third) {
+        log.info("Awaiting failure")
         streamLifecycle3.expectMsg("failed-system-42-tmp")
       }
 
