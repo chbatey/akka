@@ -78,6 +78,7 @@ private[io] class TcpOutgoingConnection(
   def resolving(registration: ChannelRegistration): Receive = {
     case resolved: Dns.Resolved =>
       reportConnectFailure {
+        log.debug("Resolved {}", resolved)
         register(new InetSocketAddress(resolved.addr, remoteAddress.getPort), registration)
       }
     case ReceiveTimeout =>
