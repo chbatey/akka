@@ -47,7 +47,7 @@ private final class InitialGroupRouterImpl[T](
   // messages to a router
   ctx.system.receptionist ! Receptionist.Subscribe(serviceKey, ctx.self.unsafeUpcast[Any].narrow[Receptionist.Listing])
 
-  private val stash = StashBuffer[T](capacity = 10000)
+  private val stash = StashBuffer[T](capacity = 10000, ctx)
 
   def onMessage(msg: T): Behavior[T] = msg match {
     case serviceKey.Listing(update) =>
@@ -56,7 +56,7 @@ private final class InitialGroupRouterImpl[T](
       val activeGroupRouter = new GroupRouterImpl[T](ctx, serviceKey, routingLogic, update.isEmpty)
       stash.unstashAll(ctx, activeGroupRouter)
     case msg: T @unchecked =>
-      if (!stash.isFull) stash.stash(msg)
+      if (!stash.isFull) stash.stash()
       else ctx.system.deadLetters ! Dropped(msg, ctx.self) // don't fail on full stash
       this
   }

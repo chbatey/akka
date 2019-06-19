@@ -20,8 +20,7 @@ object StashBuffer {
    * @param capacity the buffer can hold at most this number of messages
    * @return an empty message buffer
    */
-  def create[T](capacity: Int): StashBuffer[T] =
-    StashBufferImpl[T](capacity)
+  def create[T](capacity: Int): StashBuffer[T] = StashBufferImpl[T](capacity, ???) // FIXME
 }
 
 /**
@@ -69,7 +68,7 @@ object StashBuffer {
    * @return this message buffer
    * @throws  `StashOverflowException` is thrown if the buffer [[StashBuffer#isFull]].
    */
-  def stash(message: T): StashBuffer[T]
+  def stash(): StashBuffer[T]
 
   /**
    * Return the first element of the message buffer without removing it.

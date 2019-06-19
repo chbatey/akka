@@ -5,8 +5,8 @@
 package akka.actor
 
 import scala.collection.immutable
-
 import akka.AkkaException
+import akka.annotation.InternalStableApi
 import akka.dispatch.{
   DequeBasedMessageQueueSemantics,
   Envelope,
@@ -183,6 +183,7 @@ private[akka] trait StashSupport {
    * Prepends `others` to this stash. This method is optimized for a large stash and
    * small `others`.
    */
+  @InternalStableApi
   private[akka] def prepend(others: immutable.Seq[Envelope]): Unit =
     theStash = others.foldRight(theStash)((e, s) => e +: s)
 
@@ -244,6 +245,7 @@ private[akka] trait StashSupport {
    *
    * Clears the stash and and returns all envelopes that have not been unstashed.
    */
+  @InternalStableApi
   private[akka] def clearStash(): Vector[Envelope] = {
     val stashed = theStash
     theStash = Vector.empty[Envelope]
@@ -255,6 +257,7 @@ private[akka] trait StashSupport {
    * the envelope is a `Terminated` message, it will be ensured that it can be re-received
    * by the actor.
    */
+  @InternalStableApi
   private def enqueueFirst(envelope: Envelope): Unit = {
     mailbox.enqueueFirst(self, envelope)
     envelope.message match {

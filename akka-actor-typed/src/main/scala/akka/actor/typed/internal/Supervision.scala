@@ -204,7 +204,7 @@ private class RestartSupervisor[O, T, Thr <: Throwable: ClassTag](initial: Behav
             if (stashBuffer.isFull)
               dropped(ctx, signal)
             else
-              stashBuffer.stash(signal)
+              stashBuffer.stash() // FIXME
             Behaviors.same
         }
     }
@@ -252,7 +252,7 @@ private class RestartSupervisor[O, T, Thr <: Throwable: ClassTag](initial: Behav
             if (stashBuffer.isFull)
               dropped(ctx, m)
             else
-              stashBuffer.stash(m)
+              stashBuffer.stash() // FIXME
             Behaviors.same
         }
     }
@@ -327,7 +327,9 @@ private class RestartSupervisor[O, T, Thr <: Throwable: ClassTag](initial: Behav
     val stashCapacity =
       if (strategy.stashCapacity >= 0) strategy.stashCapacity
       else ctx.asScala.system.settings.RestartStashCapacity
-    restartingInProgress = OptionVal.Some((StashBuffer[Any](stashCapacity), childrenToStop))
+    // FIXME this is being used as a general purpose datastructure rather than a stash
+    restartingInProgress =
+      OptionVal.Some((StashBuffer[Any](stashCapacity, ctx.asInstanceOf[scaladsl.ActorContext[Any]]), childrenToStop))
 
     strategy match {
       case backoff: Backoff =>
@@ -364,6 +366,7 @@ private class RestartSupervisor[O, T, Thr <: Throwable: ClassTag](initial: Behav
         case OptionVal.None => newBehavior
         case OptionVal.Some((stashBuffer, _)) =>
           restartingInProgress = OptionVal.None
+          // FIXME
           stashBuffer.unstashAll(ctx.asScala.asInstanceOf[scaladsl.ActorContext[Any]], newBehavior.unsafeCast)
       }
       nextBehavior.narrow

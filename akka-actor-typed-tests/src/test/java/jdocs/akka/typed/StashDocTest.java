@@ -119,7 +119,7 @@ public class StashDocTest extends JUnitSuite {
               Command.class,
               message -> {
                 // stash all other messages for later processing
-                buffer.stash(message);
+                buffer.stash();
                 return Behaviors.same();
               })
           .build();
@@ -163,7 +163,7 @@ public class StashDocTest extends JUnitSuite {
           .onMessage(
               Command.class,
               message -> {
-                buffer.stash(message);
+                buffer.stash();
                 return Behaviors.same();
               })
           .build();

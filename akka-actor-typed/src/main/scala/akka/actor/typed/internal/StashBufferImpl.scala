@@ -7,7 +7,7 @@ package akka.actor.typed.internal
 import java.util.function.Consumer
 import java.util.function.{ Function => JFunction }
 
-import akka.actor.DeadLetter
+import akka.actor.{ ActorCell, DeadLetter }
 
 import scala.annotation.tailrec
 import scala.util.control.NonFatal
@@ -16,6 +16,7 @@ import akka.actor.typed.Signal
 import akka.actor.typed.TypedActorContext
 import akka.actor.typed.javadsl
 import akka.actor.typed.scaladsl
+import akka.actor.typed.scaladsl.ActorContext
 import akka.annotation.InternalApi
 import akka.util.ConstantFun
 
@@ -27,14 +28,15 @@ import akka.util.ConstantFun
     def apply(f: T => Unit): Unit = f(message)
   }
 
-  def apply[T](capacity: Int): StashBufferImpl[T] =
-    new StashBufferImpl(capacity, null, null)
+  def apply[T](capacity: Int, ctx: ActorContext[T]): StashBufferImpl[T] =
+    new StashBufferImpl(ctx, capacity, null, null)
 }
 
 /**
  * INTERNAL API
  */
 @InternalApi private[akka] final class StashBufferImpl[T] private (
+    val ctx: ActorContext[T],
     val capacity: Int,
     private var _first: StashBufferImpl.Node[T],
     private var _last: StashBufferImpl.Node[T])
@@ -42,6 +44,11 @@ import akka.util.ConstantFun
     with scaladsl.StashBuffer[T] {
 
   import StashBufferImpl.Node
+
+  import akka.actor.typed.scaladsl.adapter._
+  // FIXME, when is this not an ActorCell? I don't think ever for a typed actor context
+  // when using the stbbed actor context
+  private val cell = ctx.toUntyped.asInstanceOf[ActorCell]
 
   private var _size: Int = if (_first eq null) 0 else 1
 
@@ -53,7 +60,11 @@ import akka.util.ConstantFun
 
   override def isFull: Boolean = _size == capacity
 
-  override def stash(message: T): StashBufferImpl[T] = {
+  override def stash(): StashBufferImpl[T] = {
+    val currentMessage = cell.currentMessage
+    // FIXME, can user call stash when we're processing an internal message?
+    val message = currentMessage.message.asInstanceOf[T]
+    println("Stashing current message: " + currentMessage)
     if (message == null) throw new NullPointerException
     if (isFull)
       throw new javadsl.StashOverflowException(

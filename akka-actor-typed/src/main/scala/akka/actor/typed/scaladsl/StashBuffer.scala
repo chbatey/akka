@@ -16,8 +16,8 @@ object StashBuffer {
    * @param capacity the buffer can hold at most this number of messages
    * @return an empty message buffer
    */
-  def apply[T](capacity: Int): StashBuffer[T] =
-    StashBufferImpl[T](capacity)
+  def apply[T](capacity: Int, ctx: ActorContext[T]): StashBuffer[T] =
+    StashBufferImpl[T](capacity, ctx)
 }
 
 /**
@@ -57,13 +57,12 @@ object StashBuffer {
   def isFull: Boolean
 
   /**
-   * Add one element to the end of the message buffer.
    *
-   * @param message the message to buffer
+   * Add the current message to the stash buffer
    * @return this message buffer
    * @throws  `StashOverflowException` is thrown if the buffer [[StashBuffer#isFull]].
    */
-  def stash(message: T): StashBuffer[T]
+  def stash(): StashBuffer[T]
 
   /**
    * Return the first element of the message buffer without removing it.
@@ -97,6 +96,7 @@ object StashBuffer {
    *
    * The initial `behavior` passed to `unstashAll` must not be `unhandled`.
    */
+  // FIXME, remove ctx param
   def unstashAll(ctx: ActorContext[T], behavior: Behavior[T]): Behavior[T]
 
   /**

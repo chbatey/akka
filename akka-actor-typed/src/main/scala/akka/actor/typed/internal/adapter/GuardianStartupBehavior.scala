@@ -34,7 +34,8 @@ private[akka] final class GuardianStartupBehavior[T](val guardianBehavior: Behav
 
   import GuardianStartupBehavior.Start
 
-  private val stash = StashBuffer[T](1000)
+  // FIXME, have this use a normal datastructure
+//  private val stash = StashBuffer[T](1000)
 
   override def onMessage(msg: Any): Behavior[Any] =
     msg match {
@@ -42,13 +43,14 @@ private[akka] final class GuardianStartupBehavior[T](val guardianBehavior: Behav
         // ctx is not available initially so we cannot use it until here
         Behaviors.setup(
           ctx =>
-            stash
-              .unstashAll(
-                ctx.asInstanceOf[ActorContext[T]],
-                Behaviors.intercept(() => new GuardianStopInterceptor[T])(guardianBehavior))
-              .unsafeCast[Any])
-      case other =>
-        stash.stash(other.asInstanceOf[T])
+//            stash
+//              .unstashAll(
+//                ctx.asInstanceOf[ActorContext[T]],
+//                Behaviors.intercept(() => new GuardianStopInterceptor[T])(guardianBehavior))
+//              .unsafeCast[Any])
+            guardianBehavior.unsafeCast[Any])
+      case _ =>
+//        stash.stash() // FIXME
         this
     }
 
