@@ -45,7 +45,7 @@ object ClusterShardingLeavingSpec {
 abstract class ClusterShardingLeavingSpecConfig(mode: String)
     extends MultiNodeClusterShardingConfig(
       mode,
-      loglevel = "INFO",
+      loglevel = "DEBUG",
       additionalConfig = """
         akka.cluster.sharding.rebalance-interval = 120 s
         akka.cluster.sharding.distributed-data.majority-min-cap = 1
