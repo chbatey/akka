@@ -835,6 +835,7 @@ private[remote] abstract class ArteryTransport(_system: ExtendedActorSystem, _pr
             case OptionVal.Some(snd) =>
               snd.tell(ActorSystemTerminatingAck(localAddress), ActorRef.noSender)
               if (inControlStream)
+                // FIXME, why does this side timeout? It received the ActorSystemTerminating, this system isn't terminating
                 system.scheduler.scheduleOnce(settings.Advanced.ShutdownFlushTimeout) {
                   if (!isShutdown)
                     quarantine(from.address, Some(from.uid), "ActorSystem terminated", harmless = true)

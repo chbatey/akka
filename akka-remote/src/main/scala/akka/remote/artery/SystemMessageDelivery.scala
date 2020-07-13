@@ -115,9 +115,18 @@ import akka.util.PrettyDuration.PrettyPrintableDuration
       override def postStop(): Unit = {
         val pendingCount = unacknowledged.size
         sendUnacknowledgedToDeadLetters()
+        if (pendingCount > 0) {
+          // FIXME remove
+          import akka.util.ccompat.JavaConverters._
+          val classes = unacknowledged.asScala.map {
+            case oe if oe.message.isInstanceOf[SystemMessageEnvelope] =>
+              oe.message.asInstanceOf[SystemMessageEnvelope].message.getClass.toString
+            case other => other.message.getClass.toString
+          }
+          outboundContext.quarantine(
+            s"SystemMessageDelivery stopped with [$pendingCount] pending system messages. Classes: $classes")
+        }
         unacknowledged.clear()
-        if (pendingCount > 0)
-          outboundContext.quarantine(s"SystemMessageDelivery stopped with [$pendingCount] pending system messages.")
         outboundContext.controlSubject.detach(this)
       }
 
