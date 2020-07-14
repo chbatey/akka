@@ -471,6 +471,8 @@ object ShardCoordinator {
     regions.foreach(_ ! BeginHandOff(shard))
     var remaining = regions
 
+    log.debug("Watched shutting down regions {} all regions {}", shuttingDownRegions, regions)
+
     timers.startSingleTimer("hand-off-timeout", ReceiveTimeout, handOffTimeout)
 
     def receive = {
@@ -490,6 +492,8 @@ object ShardCoordinator {
         log.debug("All shard regions acked, handing off shard [{}].", shard)
         from ! HandOff(shard)
         context.become(stoppingShard, discardOld = true)
+      } else {
+        log.debug("Still waiting on shards: {}", remaining)
       }
     }
 
@@ -599,8 +603,9 @@ abstract class ShardCoordinator(
           }
         } else {
           log.debug(
-            "ShardRegion {} was not registered since the coordinator currently does not know about a node of that region",
-            region)
+            "ShardRegion {} was not registered since the coordinator currently does not know about a node of that region. Current member state {}",
+            region,
+            cluster.state.members)
         }
 
       case RegisterProxy(proxy) =>

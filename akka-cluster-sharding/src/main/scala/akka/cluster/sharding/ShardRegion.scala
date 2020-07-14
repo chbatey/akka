@@ -899,10 +899,16 @@ private[akka] class ShardRegion(
       case Failure(_) => Success(Left(shardId))
     }
 
-  private def tryCompleteGracefulShutdown() =
+  private def tryCompleteGracefulShutdown() = {
     if (gracefulShutdownInProgress && shards.isEmpty && shardBuffers.isEmpty) {
       context.stop(self) // all shards have been rebalanced, complete graceful shutdown
+    } else if (gracefulShutdownInProgress) {
+      log.debug(
+        "Graceful shutdown not complete due to shards not being rebalanced or shardBuffers containing: {} {}",
+        shards,
+        shardBuffers)
     }
+  }
 
   def startRegistration(): Unit = {
     nextRegistrationDelay = initRegistrationDelay
@@ -1140,7 +1146,14 @@ private[akka] class ShardRegion(
   }
 
   def sendGracefulShutdownToCoordinator(): Unit = {
-    if (gracefulShutdownInProgress)
-      coordinatorSelection.foreach(_ ! GracefulShutdownReq(self))
+    if (gracefulShutdownInProgress) {
+      coordinator match {
+        case Some(c) =>
+          log.debug("Sending graceful shutdown request {}", c)
+          c ! GracefulShutdownReq(self)
+        case None => log.debug("Not sending graceful shutdown as coordinator unknown")
+      }
+
+    }
   }
 }
