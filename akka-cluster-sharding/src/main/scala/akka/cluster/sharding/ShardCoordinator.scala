@@ -720,6 +720,7 @@ abstract class ShardCoordinator(
               gracefulShutdownInProgress += region
               continueRebalance(shards.toSet)
             case None =>
+              log.error("Unknown region requested graceful shutdown {}", region)
           }
 
       case ShardRegion.GetClusterShardingStats(waitMax) =>

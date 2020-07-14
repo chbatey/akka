@@ -1151,7 +1151,10 @@ private[akka] class ShardRegion(
         case Some(c) =>
           log.debug("Sending graceful shutdown request {}", c)
           c ! GracefulShutdownReq(self)
-        case None => log.debug("Not sending graceful shutdown as coordinator unknown")
+        case None =>
+          // send to actor selection instead as coordinator doesn't allow exiting members to register
+          log.debug("Sending graceful shutdown to actor selection as not registered with coordinator")
+          coordinatorSelection.foreach { _ ! GracefulShutdownReq(self) }
       }
 
     }
