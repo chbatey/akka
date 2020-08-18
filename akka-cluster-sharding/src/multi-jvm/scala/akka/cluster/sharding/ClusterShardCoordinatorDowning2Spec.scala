@@ -48,7 +48,7 @@ object ClusterShardCoordinatorDowning2Spec {
 abstract class ClusterShardCoordinatorDowning2SpecConfig(mode: String)
     extends MultiNodeClusterShardingConfig(
       mode,
-      loglevel = "INFO",
+      loglevel = "DEBUG",
       additionalConfig = """
         akka.cluster.sharding.rebalance-interval = 120 s
         # setting down-removal-margin, for testing of issue #29131
@@ -129,7 +129,7 @@ abstract class ClusterShardCoordinatorDowning2Spec(multiNodeConfig: ClusterShard
       enterBarrier("after-3")
     }
 
-    "recover after downing other node (not coordinator)" in within(20.seconds) {
+    "recover after downing other node (not coordinator)" in within(40.seconds) {
       val secondAddress = address(second)
 
       runOn(first) {
